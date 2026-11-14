@@ -31,3 +31,4 @@ uuid = { version = "1.29", features = ["v7", "serde"] }
 utoipa = { version = "6", features = ["axum_extras", "uuid", "chrono"] }
 chrono = { version = "0.4", features = ["serde"] }
 sha2 = "0.10"
+argon2 = "0.6"
