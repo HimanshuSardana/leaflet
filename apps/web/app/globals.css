@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+@theme {
+  --color-leaf-50: oklch(0.97 0.02 145);
+  --color-leaf-500: oklch(0.62 0.14 148);
+  --color-leaf-700: oklch(0.45 0.11 150);
+}
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+html {
+  color-scheme: light dark;
+}
+
+body {
+  @apply bg-neutral-50 text-neutral-900 antialiased dark:bg-neutral-950 dark:text-neutral-100;
+}
