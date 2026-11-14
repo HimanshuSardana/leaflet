@@ -1,0 +1,32 @@
+# rust
+/target/
+**/target/
+
+# node
+node_modules/
+.next/
+out/
+dist/
+.turbo/
+*.tsbuildinfo
+
+# runtime data
+/data/
+*.db
+*.db-shm
+*.db-wal
+/blobs/
+
+# env
+.env
+.env.local
+!.env.example
+
+# editor / os
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# codegen scratch
+*.log
