@@ -1,13 +1,16 @@
 pub mod api;
 pub mod config;
+pub mod db;
 pub mod domain;
 
 use axum::Router;
+use sqlx::SqlitePool;
 use tower_http::trace::TraceLayer;
 
 #[derive(Clone)]
 pub struct AppState {
     pub config: config::Config,
+    pub pool: SqlitePool,
 }
 
 pub fn router(state: AppState) -> Router {

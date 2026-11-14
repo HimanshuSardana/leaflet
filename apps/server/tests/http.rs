@@ -4,19 +4,20 @@ use http_body_util::BodyExt;
 use leaflet::{AppState, config::Config, router};
 use tower::ServiceExt;
 
-fn state() -> AppState {
-    AppState {
-        config: Config {
-            bind: "127.0.0.1:0".parse().unwrap(),
-            data_dir: std::env::temp_dir().join("leaflet-test"),
-            database_url: String::new(),
-            log: "error".into(),
-        },
-    }
+async fn state() -> AppState {
+    let dir = std::env::temp_dir().join(format!("leaflet-http-{}", uuid::Uuid::now_v7()));
+    let config = Config {
+        bind: "127.0.0.1:0".parse().unwrap(),
+        database_url: format!("sqlite://{}?mode=rwc", dir.join("leaflet.db").display()),
+        data_dir: dir,
+        log: "error".into(),
+    };
+    let pool = leaflet::db::open(&config).await.unwrap();
+    AppState { config, pool }
 }
 
 async fn get(path: &str) -> (StatusCode, serde_json::Value) {
-    let response = router(state())
+    let response = router(state().await)
         .oneshot(Request::get(path).body(Body::empty()).unwrap())
         .await
         .unwrap();
@@ -42,7 +43,7 @@ async fn version_reports_api_v1() {
 
 #[tokio::test]
 async fn unknown_route_is_404() {
-    let response = router(state())
+    let response = router(state().await)
         .oneshot(Request::get("/nope").body(Body::empty()).unwrap())
         .await
         .unwrap();

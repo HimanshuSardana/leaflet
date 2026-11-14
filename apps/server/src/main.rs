@@ -18,6 +18,14 @@ async fn main() -> ExitCode {
         .with_env_filter(EnvFilter::new(&config.log))
         .init();
 
+    let pool = match leaflet::db::open(&config).await {
+        Ok(pool) => pool,
+        Err(err) => {
+            tracing::error!(%err, "cannot open database");
+            return ExitCode::FAILURE;
+        }
+    };
+
     if let Err(err) = std::fs::create_dir_all(config.blobs_dir()) {
         tracing::error!(dir = %config.blobs_dir().display(), %err, "cannot create blob directory");
         return ExitCode::FAILURE;
@@ -33,7 +41,7 @@ async fn main() -> ExitCode {
 
     tracing::info!(addr = %config.bind, version = env!("CARGO_PKG_VERSION"), "leaflet listening");
 
-    let app = router(AppState { config });
+    let app = router(AppState { config, pool });
     if let Err(err) = axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
         .await
