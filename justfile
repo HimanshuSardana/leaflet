@@ -14,9 +14,15 @@ dev:
     @echo "api -> http://localhost:8080  web -> http://localhost:3000"
     @trap 'kill 0' EXIT; cargo run -p leaflet-server & pnpm --filter web dev
 
-# cargo check + clippy + fmt
-check:
-    cargo fmt --all --check
+# rustfmt directly: some distros' cargo-fmt proxies through a broken rustup toolchain
+fmt:
+    rustfmt --edition 2024 --check $(git ls-files '*.rs')
+
+fmt-fix:
+    rustfmt --edition 2024 $(git ls-files '*.rs')
+
+# fmt + clippy
+check: fmt
     cargo clippy --all-targets -- -D warnings
 
 # run rust tests
