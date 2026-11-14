@@ -22,7 +22,6 @@ path = "src/bin/gen_openapi.rs"
 [dependencies]
 axum = { workspace = true }
 tokio = { workspace = true }
-tower-http = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 serde = { workspace = true }
@@ -32,6 +31,9 @@ sqlx = { workspace = true }
 uuid = { workspace = true }
 chrono = { workspace = true }
 utoipa = { workspace = true }
+sha2 = { workspace = true }
+tower-http = { workspace = true }
+tower = { workspace = true }
 
 [dev-dependencies]
 tower = { workspace = true, features = ["util"] }

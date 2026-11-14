@@ -8,6 +8,8 @@ pub struct Config {
     pub bind: SocketAddr,
     pub data_dir: PathBuf,
     pub database_url: String,
+    /// Where the exported web bundle lives. Absent in api-only deployments.
+    pub web_dir: PathBuf,
     pub log: String,
 }
 
@@ -44,12 +46,14 @@ impl Config {
             ),
         };
 
+        let web_dir = std::env::var("LEAFLET_WEB_DIR").unwrap_or_else(|_| "./apps/web/out".into());
         let log = std::env::var("LEAFLET_LOG").unwrap_or_else(|_| "info,tower_http=debug".into());
 
         Ok(Self {
             bind,
             data_dir,
             database_url,
+            web_dir: PathBuf::from(web_dir),
             log,
         })
     }
@@ -70,6 +74,7 @@ mod tests {
             bind: "0.0.0.0:8080".parse().unwrap(),
             data_dir: PathBuf::from("/var/lib/leaflet"),
             database_url: String::new(),
+            web_dir: PathBuf::from("./apps/web/out"),
             log: String::new(),
         };
         assert_eq!(cfg.blobs_dir(), PathBuf::from("/var/lib/leaflet/blobs"));

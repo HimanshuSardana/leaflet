@@ -85,6 +85,7 @@ mod tests {
         Config {
             bind: "127.0.0.1:0".parse().unwrap(),
             database_url: format!("sqlite://{}?mode=rwc", dir.join("leaflet.db").display()),
+            web_dir: dir.join("web"),
             data_dir: dir,
             log: "error".into(),
         }

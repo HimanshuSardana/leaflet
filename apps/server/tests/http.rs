@@ -9,11 +9,19 @@ async fn state() -> AppState {
     let config = Config {
         bind: "127.0.0.1:0".parse().unwrap(),
         database_url: format!("sqlite://{}?mode=rwc", dir.join("leaflet.db").display()),
-        data_dir: dir,
+        data_dir: dir.clone(),
+        web_dir: dir.join("web"),
         log: "error".into(),
     };
     let pool = leaflet::db::open(&config).await.unwrap();
-    AppState { config, pool }
+    let storage = leaflet::storage::Storage::new(config.blobs_dir()).unwrap();
+    let assets = leaflet::assets::Assets::new(&config.web_dir);
+    AppState {
+        config,
+        pool,
+        storage,
+        assets,
+    }
 }
 
 async fn get(path: &str) -> (StatusCode, serde_json::Value) {
@@ -39,6 +47,30 @@ async fn version_reports_api_v1() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["api"], "v1");
     assert_eq!(body["name"], "leaflet-server");
+}
+
+#[tokio::test]
+async fn api_paths_never_fall_through_to_the_spa() {
+    let response = router(state().await)
+        .oneshot(Request::get("/api/v1/nope").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn built_assets_are_served_from_the_root() {
+    let state = state().await;
+    std::fs::create_dir_all(&state.config.web_dir).unwrap();
+    std::fs::write(state.config.web_dir.join("index.html"), "<h1>leaflet</h1>").unwrap();
+    let response = router(state.clone())
+        .oneshot(Request::get("/").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    assert!(String::from_utf8_lossy(&body).contains("leaflet"));
+    std::fs::remove_dir_all(&state.config.data_dir).ok();
 }
 
 #[tokio::test]

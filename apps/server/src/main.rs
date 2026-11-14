@@ -26,10 +26,13 @@ async fn main() -> ExitCode {
         }
     };
 
-    if let Err(err) = std::fs::create_dir_all(config.blobs_dir()) {
-        tracing::error!(dir = %config.blobs_dir().display(), %err, "cannot create blob directory");
-        return ExitCode::FAILURE;
-    }
+    let storage = match leaflet::storage::Storage::new(config.blobs_dir()) {
+        Ok(storage) => storage,
+        Err(err) => {
+            tracing::error!(%err, "cannot prepare blob storage");
+            return ExitCode::FAILURE;
+        }
+    };
 
     let listener = match TcpListener::bind(config.bind).await {
         Ok(listener) => listener,
@@ -41,7 +44,17 @@ async fn main() -> ExitCode {
 
     tracing::info!(addr = %config.bind, version = env!("CARGO_PKG_VERSION"), "leaflet listening");
 
-    let app = router(AppState { config, pool });
+    let assets = leaflet::assets::Assets::new(&config.web_dir);
+    if assets.resolved().is_none() {
+        tracing::warn!(dir = %config.web_dir.display(), "no web export found; serving api only");
+    }
+
+    let app = router(AppState {
+        config,
+        pool,
+        storage,
+        assets,
+    });
     if let Err(err) = axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
         .await
