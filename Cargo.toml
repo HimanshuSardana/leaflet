@@ -32,3 +32,6 @@ utoipa = { version = "6", features = ["axum_extras", "uuid", "chrono"] }
 chrono = { version = "0.4", features = ["serde"] }
 sha2 = "0.10"
 argon2 = "0.6"
+jsonwebtoken = { version = "11", default-features = false, features = ["rust_crypto"] }
+rand = "0.10"
+base64 = "0.22"

@@ -1,6 +1,8 @@
 //! Credential handling. Passwords are only ever stored as argon2id hashes; the
 //! plaintext never leaves the request handler that hashed it.
 
+pub mod tokens;
+
 use argon2::password_hash::{PasswordHasher, PasswordVerifier, phc::PasswordHash};
 use argon2::{Algorithm, Argon2, Params, Version};
 
@@ -18,6 +20,11 @@ pub enum PasswordError {
 
 /// bcrypt-style silent truncation is a footgun; refuse instead.
 pub const MIN_LEN: usize = 8;
+
+/// Hex sha256 of a byte string, the only form tokens take at rest.
+pub fn sha256_hex(bytes: &[u8]) -> String {
+    crate::storage::sha256_hex(bytes)
+}
 pub const MAX_LEN: usize = 256;
 
 fn hasher() -> Argon2<'static> {
