@@ -5,6 +5,13 @@ export type Health = {
     status: string;
   };
 
+export type Problem = {
+    detail?: unknown;
+    status: number;
+    title: string;
+    type: string;
+  };
+
 export type Version = {
     api: string;
     name: string;

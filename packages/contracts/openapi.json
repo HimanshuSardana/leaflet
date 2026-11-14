@@ -78,6 +78,34 @@
           }
         }
       },
+      "Problem": {
+        "type": "object",
+        "required": [
+          "type",
+          "title",
+          "status"
+        ],
+        "properties": {
+          "detail": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "title": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "description": "Stable, machine-readable slug: `not_found`, `unauthorized`, …"
+          }
+        }
+      },
       "Version": {
         "type": "object",
         "required": [

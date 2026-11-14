@@ -1,3 +1,4 @@
+pub mod error;
 pub mod version;
 
 use axum::Router;
@@ -59,6 +60,6 @@ async fn healthz(State(state): State<AppState>) -> Response {
         license(name = "AGPL-3.0-only")
     ),
     paths(healthz, version::version),
-    components(schemas(Health, version::Version))
+    components(schemas(Health, version::Version, error::Problem))
 )]
 pub struct ApiDoc;
