@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   ApiProblem,
@@ -31,15 +31,27 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AuthState>({ status: "loading" });
 
+  // Refresh rotates and revokes the session token, so two concurrent restores
+  // would cancel each other out: the loser presents a token the winner just
+  // rotated away and is told 401. One request serves every caller.
+  const restoring = useRef<Promise<AuthState> | null>(null);
+
   /**
    * The access token lives in memory only, so a reload starts here: exchange the
    * httpOnly session cookie for a fresh token. No cookie → anonymous.
    */
   const restore = useCallback(async (signal: AbortSignal) => {
     try {
-      const { access_token } = await refreshSession();
-      const user = await currentUser(access_token);
-      if (!signal.aborted) setState({ status: "authenticated", user, accessToken: access_token });
+      restoring.current ??= (async () => {
+        const { access_token } = await refreshSession();
+        const user = await currentUser(access_token);
+        return { status: "authenticated", user, accessToken: access_token } as AuthState;
+      })().finally(() => {
+        restoring.current = null;
+      });
+
+      const next = await restoring.current;
+      if (!signal.aborted) setState(next);
     } catch (error) {
       if (signal.aborted) return;
       // 401 means "no valid session" — anything else is a server problem worth

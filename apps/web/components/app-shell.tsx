@@ -81,8 +81,17 @@ const GROUPS: { label: string; items: Destination[] }[] = [
  * signed-in readers, and an ordinary page for everyone else. Rendering the
  * sidebar for a visitor who has no library to navigate was the whole problem.
  */
+/** Reading is full-bleed: no rail, no inset header, nothing that competes with
+ *  the page you are on. */
+const BARE_ROUTES = ["/read/"];
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { state } = useAuth();
+  const pathname = usePathname();
+
+  if (BARE_ROUTES.some((route) => pathname.startsWith(route))) {
+    return <main className="h-svh">{children}</main>;
+  }
 
   if (state.status === "authenticated") {
     return <Dashboard>{children}</Dashboard>;
