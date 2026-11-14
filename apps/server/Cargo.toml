@@ -15,6 +15,10 @@ path = "src/lib.rs"
 name = "leaflet-server"
 path = "src/main.rs"
 
+[[bin]]
+name = "gen-openapi"
+path = "src/bin/gen_openapi.rs"
+
 [dependencies]
 axum = { workspace = true }
 tokio = { workspace = true }
@@ -27,6 +31,7 @@ thiserror = { workspace = true }
 sqlx = { workspace = true }
 uuid = { workspace = true }
 chrono = { workspace = true }
+utoipa = { workspace = true }
 
 [dev-dependencies]
 tower = { workspace = true, features = ["util"] }

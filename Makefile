@@ -34,11 +34,13 @@ test-web: ## web typecheck + tests
 ci: check test-rust test-web contract-check ## what CI runs
 
 contract: ## regenerate the typed api contract from the rust spec
-	cargo run -p leaflet-server --bin gen-openapi
+	cargo run -q -p leaflet-server --bin gen-openapi
 	pnpm --filter @leaflet/contracts build
 
 contract-check: ## fail if the committed contract is stale
-	@git diff --quiet -- packages/contracts/src || { echo "contract is stale: run 'make contract'"; exit 1; }
+	@cargo run -q -p leaflet-server --bin gen-openapi >/dev/null
+	@pnpm --filter @leaflet/contracts build >/dev/null
+	@git diff --quiet -- packages/contracts || { echo "contract is stale: run 'make contract'"; exit 1; }
 
 build: ## release binary (web export built first)
 	pnpm --filter web build
