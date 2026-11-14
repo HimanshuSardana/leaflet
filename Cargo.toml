@@ -10,11 +10,14 @@ license = "AGPL-3.0-only"
 repository = "https://github.com/HimanshuSardana/leaflet"
 
 [workspace.dependencies]
-axum = "0.8.9"
+axum = { version = "0.8.9", features = ["multipart"] }
 axum-extra = { version = "0.12", features = ["cookie"] }
 cookie = "0.18"
-tokio = { version = "1.54", features = ["rt-multi-thread", "macros", "signal", "net", "fs"] }
+tokio = { version = "1.54", features = ["rt-multi-thread", "macros", "signal", "net", "fs", "io-util"] }
 tower = "0.5"
+tokio-util = { version = "0.7", features = ["io"] }
+bytes = "1"
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
 tower-http = { version = "0.7.1", features = ["trace", "compression-gzip", "fs", "set-header", "cors"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }

@@ -5,9 +5,17 @@
 
 use std::path::{Path, PathBuf};
 
+use bytes::Bytes;
+use futures_util::StreamExt;
+use sha2::Digest;
 use sqlx::SqlitePool;
+use tokio::io::AsyncWriteExt;
 
 use crate::db;
+
+/// How much of the head is kept so the caller can sniff the container format
+/// without re-reading the file.
+pub const HEAD_PROBE: usize = 4096;
 
 #[derive(Debug, thiserror::Error)]
 pub enum StorageError {
@@ -19,6 +27,21 @@ pub enum StorageError {
     },
     #[error("database error: {0}")]
     Db(#[from] sqlx::Error),
+    #[error("upload failed: {0}")]
+    Upload(String),
+    #[error("upload exceeds the {0} byte limit")]
+    TooLarge(u64),
+}
+
+/// What a streamed upload left on disk.
+#[derive(Debug, Clone)]
+pub struct StoredBlob {
+    pub sha256: String,
+    pub byte_size: u64,
+    /// The bytes were already here: nothing was written.
+    pub deduplicated: bool,
+    /// First bytes of the file, for format sniffing.
+    pub head: Vec<u8>,
 }
 
 impl StorageError {
@@ -74,6 +97,93 @@ impl Storage {
         Ok(true)
     }
 
+    /// Streams an upload to a temp file while hashing it, then moves it into
+    /// place under its own sha256. Nothing is held in memory, so a 400 MB PDF
+    /// costs one chunk of RAM and the file never appears half-written.
+    pub async fn put_stream<S, E>(
+        &self,
+        mut stream: S,
+        max_bytes: u64,
+    ) -> Result<StoredBlob, StorageError>
+    where
+        S: futures_util::Stream<Item = Result<Bytes, E>> + Unpin,
+        E: std::fmt::Display,
+    {
+        let tmp_dir = self.root.join(".tmp");
+        tokio::fs::create_dir_all(&tmp_dir)
+            .await
+            .map_err(StorageError::io(&tmp_dir))?;
+        let tmp = tmp_dir.join(uuid::Uuid::now_v7().to_string());
+
+        let mut file = tokio::fs::File::create(&tmp)
+            .await
+            .map_err(StorageError::io(&tmp))?;
+        let mut hasher = sha2::Sha256::new();
+        let mut head = Vec::with_capacity(HEAD_PROBE);
+        let mut written: u64 = 0;
+
+        let streamed = async {
+            while let Some(chunk) = stream.next().await {
+                let chunk = chunk.map_err(|err| StorageError::Upload(err.to_string()))?;
+                if written + chunk.len() as u64 > max_bytes {
+                    return Err(StorageError::TooLarge(max_bytes));
+                }
+                if head.len() < HEAD_PROBE {
+                    let take = (HEAD_PROBE - head.len()).min(chunk.len());
+                    head.extend_from_slice(&chunk[..take]);
+                }
+                hasher.update(&chunk);
+                file.write_all(&chunk)
+                    .await
+                    .map_err(StorageError::io(&tmp))?;
+                written += chunk.len() as u64;
+            }
+            file.flush().await.map_err(StorageError::io(&tmp))?;
+            Ok(())
+        }
+        .await;
+
+        if let Err(err) = streamed {
+            drop(file);
+            let _ = tokio::fs::remove_file(&tmp).await;
+            return Err(err);
+        }
+        drop(file);
+
+        let digest: [u8; 32] = hasher.finalize().into();
+        let sha256 = to_hex(&digest);
+        let path = self.path_for(&sha256);
+
+        if tokio::fs::try_exists(&path)
+            .await
+            .map_err(StorageError::io(&path))?
+        {
+            let _ = tokio::fs::remove_file(&tmp).await;
+            return Ok(StoredBlob {
+                sha256,
+                byte_size: written,
+                deduplicated: true,
+                head,
+            });
+        }
+
+        if let Some(parent) = path.parent() {
+            tokio::fs::create_dir_all(parent)
+                .await
+                .map_err(StorageError::io(parent))?;
+        }
+        tokio::fs::rename(&tmp, &path)
+            .await
+            .map_err(StorageError::io(&path))?;
+
+        Ok(StoredBlob {
+            sha256,
+            byte_size: written,
+            deduplicated: false,
+            head,
+        })
+    }
+
     pub async fn contains(&self, sha256: &str) -> bool {
         tokio::fs::try_exists(self.path_for(sha256))
             .await
@@ -101,9 +211,12 @@ impl Storage {
 
 /// sha256 hex of a byte stream, the blob's name.
 pub fn sha256_hex(bytes: &[u8]) -> String {
+    to_hex(&<sha2::Sha256 as Digest>::digest(bytes).into())
+}
+
+fn to_hex(digest: &[u8; 32]) -> String {
     use std::fmt::Write as _;
 
-    let digest: [u8; 32] = <sha2::Sha256 as sha2::Digest>::digest(bytes).into();
     let mut out = String::with_capacity(64);
     for byte in digest {
         let _ = write!(out, "{byte:02x}");
@@ -125,6 +238,76 @@ mod tests {
             sha256_hex(b"leaflet"),
             "73e47f3ae78b3400ae23f75a4ef62e131bd0d02848f922227f5bd27767368fb9"
         );
+    }
+
+    fn chunks(parts: &[&'static [u8]]) -> impl futures_util::Stream<Item = Result<Bytes, String>> {
+        let owned: Vec<Result<Bytes, String>> =
+            parts.iter().map(|p| Ok(Bytes::from_static(p))).collect();
+        futures_util::stream::iter(owned)
+    }
+
+    #[tokio::test]
+    async fn put_stream_hashes_across_chunk_boundaries() {
+        let storage = Storage::new(root("stream")).unwrap();
+        let mut whole = Vec::new();
+        let parts: Vec<&'static [u8]> = vec![b"leaf", b"let"];
+        for part in &parts {
+            whole.extend_from_slice(part);
+        }
+
+        let blob = storage.put_stream(chunks(&parts), 1024).await.unwrap();
+        assert_eq!(blob.sha256, sha256_hex(&whole));
+        assert_eq!(blob.byte_size, whole.len() as u64);
+        assert!(!blob.deduplicated);
+        assert_eq!(blob.head, whole);
+        assert_eq!(
+            std::fs::read(storage.path_for(&blob.sha256)).unwrap(),
+            whole
+        );
+        std::fs::remove_dir_all(storage.root()).ok();
+    }
+
+    #[tokio::test]
+    async fn put_stream_dedupes_and_drops_its_temp_file() {
+        let storage = Storage::new(root("stream-dedupe")).unwrap();
+        assert!(
+            !storage
+                .put_stream(chunks(&[b"same"]), 1024)
+                .await
+                .unwrap()
+                .deduplicated
+        );
+        assert!(
+            storage
+                .put_stream(chunks(&[b"same"]), 1024)
+                .await
+                .unwrap()
+                .deduplicated
+        );
+        let tmp = std::fs::read_dir(storage.root().join(".tmp")).unwrap();
+        assert_eq!(tmp.count(), 0, "no temp files survive a successful upload");
+        std::fs::remove_dir_all(storage.root()).ok();
+    }
+
+    #[tokio::test]
+    async fn put_stream_rejects_oversized_and_failed_uploads_without_leaving_a_blob() {
+        let storage = Storage::new(root("stream-limits")).unwrap();
+
+        let too_large = storage.put_stream(chunks(&[b"0123456789"]), 4).await;
+        assert!(matches!(too_large, Err(StorageError::TooLarge(4))));
+
+        let broken: futures_util::stream::Iter<std::vec::IntoIter<Result<Bytes, String>>> =
+            futures_util::stream::iter(vec![Err("connection reset".to_string())]);
+        let failed = storage.put_stream(broken, 1024).await;
+        assert!(matches!(failed, Err(StorageError::Upload(_))));
+
+        assert_eq!(
+            std::fs::read_dir(storage.root().join(".tmp"))
+                .unwrap()
+                .count(),
+            0
+        );
+        std::fs::remove_dir_all(storage.root()).ok();
     }
 
     #[tokio::test]

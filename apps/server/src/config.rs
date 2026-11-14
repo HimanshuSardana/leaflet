@@ -15,6 +15,8 @@ pub struct Config {
     /// `Secure` on the refresh cookie. Set false only for plain-http dev boxes.
     pub cookie_secure: bool,
     pub log: String,
+    /// Largest accepted upload, enforced while the stream is read.
+    pub max_upload_bytes: u64,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -25,6 +27,8 @@ pub enum ConfigError {
     BadIp(String),
     #[error("LEAFLET_DATA_DIR is empty")]
     EmptyDataDir,
+    #[error("LEAFLET_MAX_UPLOAD_BYTES must be a number of bytes")]
+    BadUploadLimit,
 }
 
 impl Config {
@@ -56,6 +60,14 @@ impl Config {
             .filter(|code| !code.trim().is_empty());
         let cookie_secure = std::env::var("LEAFLET_INSECURE_COOKIES").is_err();
         let log = std::env::var("LEAFLET_LOG").unwrap_or_else(|_| "info,tower_http=debug".into());
+        // 512 MiB: comfortably past a big art book or a CBZ volume.
+        let max_upload_bytes = match std::env::var("LEAFLET_MAX_UPLOAD_BYTES") {
+            Ok(raw) => raw
+                .trim()
+                .parse()
+                .map_err(|_| ConfigError::BadUploadLimit)?,
+            Err(_) => 512 * 1024 * 1024,
+        };
 
         Ok(Self {
             bind,
@@ -65,6 +77,7 @@ impl Config {
             invite_code,
             cookie_secure,
             log,
+            max_upload_bytes,
         })
     }
 
@@ -88,6 +101,7 @@ mod tests {
             invite_code: None,
             cookie_secure: true,
             log: String::new(),
+            max_upload_bytes: 512 * 1024 * 1024,
         };
         assert_eq!(cfg.blobs_dir(), PathBuf::from("/var/lib/leaflet/blobs"));
     }

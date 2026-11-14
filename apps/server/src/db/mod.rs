@@ -9,6 +9,7 @@ use std::time::Duration;
 use sqlx::SqlitePool;
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous};
 
+pub mod books;
 pub mod sessions;
 pub mod users;
 
@@ -93,6 +94,7 @@ mod tests {
             cookie_secure: false,
             data_dir: dir,
             log: "error".into(),
+            max_upload_bytes: 512 * 1024 * 1024,
         }
     }
 

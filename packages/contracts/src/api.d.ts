@@ -11,6 +11,22 @@ export type AuthSession = {
     user: User;
   };
 
+export type Book = {
+    added_at: string;
+    author?: string | null;
+    byte_size: number;
+    format: BookFormat;
+    id: string;
+    language?: string | null;
+    page_count?: number | null;
+    series?: string | null;
+    sha256: string;
+    title: string;
+    volume?: number | null;
+  };
+
+export type BookFormat = "pdf" | "epub" | "cbz";
+
 export type Health = {
     database: string;
     status: string;
@@ -60,6 +76,10 @@ export type Operations = {
   "POST /api/v1/auth/logout": unknown;
   "POST /api/v1/auth/refresh": AccessToken;
   "POST /api/v1/auth/register": unknown;
+  "GET /api/v1/books": Book[];
+  "POST /api/v1/books": Book;
+  "GET /api/v1/books/{id}": Book;
+  "GET /api/v1/books/{id}/file": unknown;
   "GET /api/v1/me": User;
   "GET /api/v1/version": Version;
   "GET /healthz": Health;

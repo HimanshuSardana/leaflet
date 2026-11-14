@@ -1,4 +1,5 @@
 pub mod auth;
+pub mod books;
 pub mod error;
 pub mod version;
 
@@ -15,7 +16,10 @@ use crate::AppState;
 pub fn routes() -> Router<AppState> {
     Router::new().route("/healthz", get(healthz)).nest(
         "/api/v1",
-        version::routes().merge(auth::routes()).merge(me_route()),
+        version::routes()
+            .merge(auth::routes())
+            .merge(books::routes())
+            .merge(me_route()),
     )
 }
 
@@ -72,7 +76,11 @@ async fn healthz(State(state): State<AppState>) -> Response {
         auth::login,
         auth::refresh,
         auth::logout,
-        auth::me
+        auth::me,
+        books::list,
+        books::upload,
+        books::get_one,
+        books::download
     ),
     components(schemas(
         Health,
@@ -85,6 +93,8 @@ async fn healthz(State(state): State<AppState>) -> Response {
         crate::domain::user::User,
         crate::domain::user::Role,
         crate::domain::RegistrationMode,
+        crate::domain::Book,
+        crate::domain::BookFormat,
     ))
 )]
 pub struct ApiDoc;

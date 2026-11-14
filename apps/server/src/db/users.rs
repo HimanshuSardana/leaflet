@@ -114,6 +114,7 @@ mod tests {
             invite_code: None,
             cookie_secure: false,
             log: "error".into(),
+            max_upload_bytes: 512 * 1024 * 1024,
         };
         (db::open(&config).await.unwrap(), dir)
     }
