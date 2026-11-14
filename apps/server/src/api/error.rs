@@ -93,7 +93,6 @@ impl IntoResponse for ApiError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::body::Body;
     use http_body_util::BodyExt;
 
     #[tokio::test]
