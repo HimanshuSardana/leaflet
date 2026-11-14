@@ -13,7 +13,7 @@ use utoipa::ToSchema;
 
 use crate::AppState;
 use crate::api::error::ApiError;
-use crate::auth::{cookie, hash_password, tokens};
+use crate::auth::{cookie, hash_password, tokens, verify_password};
 use crate::db::{sessions, users};
 use crate::domain::user::{Role, User};
 
@@ -25,6 +25,12 @@ pub struct RegisterRequest {
     /// Required once an account exists; ignored for the bootstrap account.
     #[serde(default)]
     pub invite_code: Option<String>,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct LoginRequest {
+    pub email: String,
+    pub password: String,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -123,6 +129,74 @@ pub async fn register(
         };
 
     signed_in(
+        StatusCode::CREATED,
+        state.config.cookie_secure,
+        jar,
+        user,
+        issued,
+        &state.signing,
+        now,
+    )
+}
+
+#[utoipa::path(post, path = "/api/v1/auth/login", tag = "auth",
+    request_body = LoginRequest,
+    responses(
+        (status = 200, description = "signed in", body = AuthSession),
+        (status = 401, description = "wrong email or password", body = crate::api::error::Problem)
+    ))]
+pub async fn login(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    headers: HeaderMap,
+    Json(body): Json<LoginRequest>,
+) -> Response {
+    let now = Utc::now();
+    let record = match users::find_by_email(&state.pool, &body.email).await {
+        Ok(record) => record,
+        Err(err) => {
+            tracing::error!(%err, "cannot look up user");
+            return ApiError::internal().into_response();
+        }
+    };
+
+    // Always run one verification so a missing account and a wrong password
+    // take the same time; the dummy hash is built once, lazily.
+    let (user, verified) = match record {
+        Some(record) => {
+            let verified = verify_password(&body.password, &record.password_hash).unwrap_or(false);
+            (record.into_user().ok_or_else(ApiError::internal), verified)
+        }
+        None => {
+            let _ = verify_password(&body.password, dummy_hash());
+            (Err(ApiError::internal()), false)
+        }
+    };
+
+    if !verified {
+        return ApiError::new(
+            StatusCode::UNAUTHORIZED,
+            "invalid_credentials",
+            "Invalid credentials",
+        )
+        .with_detail("email or password is wrong")
+        .into_response();
+    }
+    let Ok(user) = user else {
+        return ApiError::internal().into_response();
+    };
+
+    let issued =
+        match sessions::issue(&state.pool, user.id, user_agent(&headers).as_deref(), now).await {
+            Ok(issued) => issued,
+            Err(err) => {
+                tracing::error!(%err, "cannot issue session");
+                return ApiError::internal().into_response();
+            }
+        };
+
+    signed_in(
+        StatusCode::OK,
         state.config.cookie_secure,
         jar,
         user,
@@ -135,6 +209,7 @@ pub async fn register(
 /// Shared finish line for register/login/refresh: access token in the body,
 /// session token in the cookie.
 fn signed_in(
+    status: StatusCode,
     secure_cookie: bool,
     jar: CookieJar,
     user: User,
@@ -157,7 +232,7 @@ fn signed_in(
         access_expires_at,
     };
 
-    (StatusCode::CREATED, jar, Json(body)).into_response()
+    (status, jar, Json(body)).into_response()
 }
 
 pub fn user_agent(headers: &HeaderMap) -> Option<String> {
@@ -165,6 +240,15 @@ pub fn user_agent(headers: &HeaderMap) -> Option<String> {
         .get(axum::http::header::USER_AGENT)
         .and_then(|value| value.to_str().ok())
         .map(|value| value.chars().take(120).collect())
+}
+
+/// Hash of a throwaway password, used to equalise login timing for unknown
+/// emails. Computed once; argon2 is intentionally slow.
+fn dummy_hash() -> &'static str {
+    static DUMMY: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    DUMMY.get_or_init(|| {
+        hash_password("not-a-real-password").expect("dummy hash must be constructible")
+    })
 }
 
 fn looks_like_email(candidate: &str) -> bool {
@@ -181,7 +265,9 @@ fn looks_like_email(candidate: &str) -> bool {
 }
 
 pub fn routes() -> axum::Router<AppState> {
-    axum::Router::new().route("/auth/register", axum::routing::post(register))
+    axum::Router::new()
+        .route("/auth/register", axum::routing::post(register))
+        .route("/auth/login", axum::routing::post(login))
 }
 
 #[cfg(test)]

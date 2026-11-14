@@ -69,6 +69,7 @@ async fn healthz(State(state): State<AppState>) -> Response {
         auth::AuthSession,
         crate::domain::user::User,
         crate::domain::user::Role,
+        crate::domain::RegistrationMode,
     ))
 )]
 pub struct ApiDoc;
