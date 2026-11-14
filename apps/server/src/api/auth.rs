@@ -4,6 +4,7 @@
 
 use axum::Json;
 use axum::extract::State;
+use axum::http::header::{HOST, ORIGIN};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum_extra::extract::cookie::CookieJar;
@@ -13,6 +14,7 @@ use utoipa::ToSchema;
 
 use crate::AppState;
 use crate::api::error::ApiError;
+use crate::auth::extract::CurrentUser;
 use crate::auth::{cookie, hash_password, tokens, verify_password};
 use crate::db::{sessions, users};
 use crate::domain::user::{Role, User};
@@ -31,6 +33,12 @@ pub struct RegisterRequest {
 pub struct LoginRequest {
     pub email: String,
     pub password: String,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct AccessToken {
+    pub access_token: String,
+    pub access_expires_at: chrono::DateTime<Utc>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -242,6 +250,115 @@ pub fn user_agent(headers: &HeaderMap) -> Option<String> {
         .map(|value| value.chars().take(120).collect())
 }
 
+/// Exchanges the refresh cookie for a new access token, rotating the session.
+/// Browsers send `Origin` on POST; if it is present it must match the host the
+/// request arrived on, which (with SameSite=Strict) closes the CSRF hole.
+#[utoipa::path(post, path = "/api/v1/auth/refresh", tag = "auth",
+    responses(
+        (status = 200, description = "new access token", body = AccessToken),
+        (status = 401, description = "no valid session cookie", body = crate::api::error::Problem)
+    ))]
+pub async fn refresh(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    headers: HeaderMap,
+) -> Response {
+    if !same_origin(&headers) {
+        return ApiError::forbidden()
+            .with_detail("cross-origin refresh is not allowed")
+            .into_response();
+    }
+
+    let Some(cookie) = jar.get(cookie::REFRESH_COOKIE) else {
+        return ApiError::unauthorized()
+            .with_detail("no session cookie")
+            .into_response();
+    };
+
+    let now = Utc::now();
+    let issued = match sessions::rotate(
+        &state.pool,
+        cookie.value(),
+        user_agent(&headers).as_deref(),
+        now,
+    )
+    .await
+    {
+        Ok(issued) => issued,
+        Err(sessions::SessionError::Invalid) => {
+            return ApiError::unauthorized()
+                .with_detail("session expired or revoked")
+                .into_response();
+        }
+        Err(err) => {
+            tracing::error!(%err, "cannot rotate session");
+            return ApiError::internal().into_response();
+        }
+    };
+
+    let context = match sessions::resolve(&state.pool, issued.session.as_str(), now).await {
+        Ok(context) => context,
+        Err(err) => {
+            tracing::error!(%err, "cannot resolve the rotated session");
+            return ApiError::internal().into_response();
+        }
+    };
+
+    let max_age = issued.expires_at - now;
+    let access_expires_at = now + tokens::ACCESS_TTL;
+    let access_token = state
+        .signing
+        .issue_access(context.user.id, context.user.role.as_str(), now);
+    let jar = jar.add(cookie::refresh_cookie(
+        issued.session.as_str(),
+        max_age,
+        state.config.cookie_secure,
+    ));
+
+    (
+        StatusCode::OK,
+        jar,
+        Json(AccessToken {
+            access_token,
+            access_expires_at,
+        }),
+    )
+        .into_response()
+}
+
+#[utoipa::path(post, path = "/api/v1/auth/logout", tag = "auth",
+    responses((status = 204, description = "session revoked, cookie cleared")))]
+pub async fn logout(State(state): State<AppState>, jar: CookieJar) -> Response {
+    if let Some(cookie) = jar.get(cookie::REFRESH_COOKIE)
+        && let Err(err) = sessions::revoke(&state.pool, cookie.value(), Utc::now()).await
+    {
+        tracing::error!(%err, "cannot revoke session");
+    }
+    let jar = jar.add(cookie::cleared_cookie(state.config.cookie_secure));
+    (StatusCode::NO_CONTENT, jar).into_response()
+}
+
+/// The account behind the bearer token, loaded fresh so a role change or a
+/// deleted account takes effect immediately.
+#[utoipa::path(get, path = "/api/v1/me", tag = "auth",
+    security(("bearer" = [])),
+    responses(
+        (status = 200, description = "the signed-in user", body = User),
+        (status = 401, description = "missing or expired access token", body = crate::api::error::Problem)
+    ))]
+pub async fn me(State(state): State<AppState>, current: CurrentUser) -> Response {
+    match users::find_by_id(&state.pool, current.id).await {
+        Ok(Some(user)) => Json(user).into_response(),
+        Ok(None) => ApiError::unauthorized()
+            .with_detail("account no longer exists")
+            .into_response(),
+        Err(err) => {
+            tracing::error!(%err, "cannot load user");
+            ApiError::internal().into_response()
+        }
+    }
+}
+
 /// Hash of a throwaway password, used to equalise login timing for unknown
 /// emails. Computed once; argon2 is intentionally slow.
 fn dummy_hash() -> &'static str {
@@ -249,6 +366,23 @@ fn dummy_hash() -> &'static str {
     DUMMY.get_or_init(|| {
         hash_password("not-a-real-password").expect("dummy hash must be constructible")
     })
+}
+
+/// Browsers send `Origin` on cross-site POSTs; a same-origin one matches `Host`.
+/// A request with no `Origin` at all (curl, the Android client) is allowed: it
+/// cannot be forged by a browser page.
+fn same_origin(headers: &HeaderMap) -> bool {
+    let Some(origin) = headers.get(ORIGIN).and_then(|value| value.to_str().ok()) else {
+        return true;
+    };
+    let Some(host) = headers.get(HOST).and_then(|value| value.to_str().ok()) else {
+        return false;
+    };
+    origin
+        .split("://")
+        .nth(1)
+        .map(|authority| authority == host)
+        .unwrap_or(false)
 }
 
 fn looks_like_email(candidate: &str) -> bool {
@@ -268,6 +402,8 @@ pub fn routes() -> axum::Router<AppState> {
     axum::Router::new()
         .route("/auth/register", axum::routing::post(register))
         .route("/auth/login", axum::routing::post(login))
+        .route("/auth/refresh", axum::routing::post(refresh))
+        .route("/auth/logout", axum::routing::post(logout))
 }
 
 #[cfg(test)]

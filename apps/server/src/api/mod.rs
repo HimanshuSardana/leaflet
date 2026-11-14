@@ -13,9 +13,14 @@ use utoipa::{OpenApi, ToSchema};
 use crate::AppState;
 
 pub fn routes() -> Router<AppState> {
-    Router::new()
-        .route("/healthz", get(healthz))
-        .nest("/api/v1", version::routes().merge(auth::routes()))
+    Router::new().route("/healthz", get(healthz)).nest(
+        "/api/v1",
+        version::routes().merge(auth::routes()).merge(me_route()),
+    )
+}
+
+fn me_route() -> Router<AppState> {
+    Router::new().route("/me", get(auth::me))
 }
 
 #[derive(Serialize, ToSchema)]
@@ -60,13 +65,23 @@ async fn healthz(State(state): State<AppState>) -> Response {
         description = "Self-hostable ebook, manga and light novel server",
         license(name = "AGPL-3.0-only")
     ),
-    paths(healthz, version::version, auth::register),
+    paths(
+        healthz,
+        version::version,
+        auth::register,
+        auth::login,
+        auth::refresh,
+        auth::logout,
+        auth::me
+    ),
     components(schemas(
         Health,
         version::Version,
         error::Problem,
         auth::RegisterRequest,
         auth::AuthSession,
+        auth::LoginRequest,
+        auth::AccessToken,
         crate::domain::user::User,
         crate::domain::user::Role,
         crate::domain::RegistrationMode,

@@ -2,6 +2,7 @@
 //! plaintext never leaves the request handler that hashed it.
 
 pub mod cookie;
+pub mod extract;
 pub mod tokens;
 
 use argon2::password_hash::{PasswordHasher, PasswordVerifier, phc::PasswordHash};
