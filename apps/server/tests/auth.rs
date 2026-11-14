@@ -260,3 +260,165 @@ async fn get_json(state: &AppState, path: &str) -> serde_json::Value {
     let bytes = response.into_body().collect().await.unwrap().to_bytes();
     serde_json::from_slice(&bytes).unwrap()
 }
+
+fn cookie_value(set_cookie: &str) -> String {
+    set_cookie
+        .split(';')
+        .next()
+        .unwrap()
+        .split_once('=')
+        .unwrap()
+        .1
+        .to_owned()
+}
+
+async fn send(state: &AppState, request: Request<Body>) -> Reply {
+    let response = router(state.clone()).oneshot(request).await.unwrap();
+    let status = response.status();
+    let set_cookie = response
+        .headers()
+        .get(header::SET_COOKIE)
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_owned);
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    Reply {
+        status,
+        body: serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null),
+        set_cookie,
+    }
+}
+
+#[tokio::test]
+async fn refresh_rotates_the_cookie_and_mints_an_access_token() {
+    let (state, dir) = state(None).await;
+    let registered = post(
+        &state,
+        "/api/v1/auth/register",
+        registration("reader@example.com", "hunter2hunter2", None),
+    )
+    .await;
+    let first = cookie_value(registered.set_cookie.as_ref().unwrap());
+
+    let reply = send(
+        &state,
+        Request::post("/api/v1/auth/refresh")
+            .header(header::COOKIE, format!("leaflet_session={first}"))
+            .header(header::HOST, "localhost:8080")
+            .header(header::ORIGIN, "http://localhost:8080")
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await;
+
+    assert_eq!(reply.status, StatusCode::OK);
+    assert!(reply.body["access_token"].as_str().unwrap().len() > 20);
+
+    let rotated = cookie_value(reply.set_cookie.as_ref().unwrap());
+    assert_ne!(rotated, first, "the old cookie must stop working");
+
+    let replay = send(
+        &state,
+        Request::post("/api/v1/auth/refresh")
+            .header(header::COOKIE, format!("leaflet_session={first}"))
+            .header(header::HOST, "localhost:8080")
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(replay.status, StatusCode::UNAUTHORIZED);
+    std::fs::remove_dir_all(dir).ok();
+}
+
+#[tokio::test]
+async fn cross_origin_refresh_is_refused() {
+    let (state, dir) = state(None).await;
+    let registered = post(
+        &state,
+        "/api/v1/auth/register",
+        registration("reader@example.com", "hunter2hunter2", None),
+    )
+    .await;
+    let cookie = cookie_value(registered.set_cookie.as_ref().unwrap());
+
+    let reply = send(
+        &state,
+        Request::post("/api/v1/auth/refresh")
+            .header(header::COOKIE, format!("leaflet_session={cookie}"))
+            .header(header::HOST, "leaflet.example")
+            .header(header::ORIGIN, "https://evil.example")
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(reply.status, StatusCode::FORBIDDEN);
+    std::fs::remove_dir_all(dir).ok();
+}
+
+#[tokio::test]
+async fn me_requires_a_bearer_token() {
+    let (state, dir) = state(None).await;
+    let registered = post(
+        &state,
+        "/api/v1/auth/register",
+        registration("reader@example.com", "hunter2hunter2", None),
+    )
+    .await;
+    let token = registered.body["access_token"].as_str().unwrap().to_owned();
+
+    let anonymous = send(
+        &state,
+        Request::get("/api/v1/me").body(Body::empty()).unwrap(),
+    )
+    .await;
+    assert_eq!(anonymous.status, StatusCode::UNAUTHORIZED);
+    assert_eq!(anonymous.body["type"], "unauthorized");
+
+    let authenticated = send(
+        &state,
+        Request::get("/api/v1/me")
+            .header(header::AUTHORIZATION, format!("Bearer {token}"))
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(authenticated.status, StatusCode::OK);
+    assert_eq!(authenticated.body["email"], "reader@example.com");
+    assert!(authenticated.body.get("password_hash").is_none());
+    std::fs::remove_dir_all(dir).ok();
+}
+
+#[tokio::test]
+async fn logout_revokes_the_session_and_clears_the_cookie() {
+    let (state, dir) = state(None).await;
+    let registered = post(
+        &state,
+        "/api/v1/auth/register",
+        registration("reader@example.com", "hunter2hunter2", None),
+    )
+    .await;
+    let cookie = cookie_value(registered.set_cookie.as_ref().unwrap());
+
+    let reply = send(
+        &state,
+        Request::post("/api/v1/auth/logout")
+            .header(header::COOKIE, format!("leaflet_session={cookie}"))
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(reply.status, StatusCode::NO_CONTENT);
+    let cleared = reply.set_cookie.unwrap();
+    assert!(cleared.contains("Max-Age=0"));
+
+    let refresh = send(
+        &state,
+        Request::post("/api/v1/auth/refresh")
+            .header(header::COOKIE, format!("leaflet_session={cookie}"))
+            .header(header::HOST, "localhost:8080")
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(refresh.status, StatusCode::UNAUTHORIZED);
+    std::fs::remove_dir_all(dir).ok();
+}
