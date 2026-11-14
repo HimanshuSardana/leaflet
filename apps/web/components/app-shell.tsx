@@ -2,111 +2,234 @@
 
 import {
   BookOpen,
-  CircleUser,
+  ChevronRight,
   Info,
   LibraryBig,
+  LogOut,
   PanelLeft,
   Settings,
+  Sparkles,
+  X,
 } from "lucide-react";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 
 import {
   AnimatedSidebar,
+  AnimatedSidebarClose,
   AnimatedSidebarContent,
   AnimatedSidebarFooter,
   AnimatedSidebarGroup,
+  AnimatedSidebarGroupContent,
   AnimatedSidebarGroupLabel,
   AnimatedSidebarHeader,
   AnimatedSidebarInset,
   AnimatedSidebarMenu,
   AnimatedSidebarMenuButton,
   AnimatedSidebarMenuItem,
+  AnimatedSidebarMenuSub,
+  AnimatedSidebarMenuSubButton,
+  AnimatedSidebarMenuSubItem,
   AnimatedSidebarProvider,
+  AnimatedSidebarRail,
   AnimatedSidebarTrigger,
 } from "@/components/motion/animated-sidebar";
 import { ThemeToggle } from "@/components/motion/theme-toggle";
 import { useAuth } from "@/lib/auth";
+import { cn } from "@/lib/utils";
 
-const NAV = [
-  { href: "/library/", label: "Library", icon: <LibraryBig /> },
-  { href: "/status/", label: "Status", icon: <Info /> },
+type Destination = {
+  label: string;
+  icon: typeof LibraryBig;
+  href?: string;
+  soon?: boolean;
+  children?: { label: string; href?: string; soon?: boolean }[];
+};
+
+const GROUPS: { label: string; items: Destination[] }[] = [
+  {
+    label: "Reading",
+    items: [
+      {
+        label: "Library",
+        icon: LibraryBig,
+        href: "/library/",
+        children: [
+          { label: "All books", href: "/library/" },
+          { label: "Collections", soon: true },
+          { label: "Reading now", soon: true },
+          { label: "Finished", soon: true },
+        ],
+      },
+      { label: "Discover", icon: Sparkles, soon: true },
+    ],
+  },
+  {
+    label: "Server",
+    items: [
+      { label: "Status", icon: Info, href: "/status/" },
+      { label: "Settings", icon: Settings, soon: true },
+    ],
+  },
 ];
-
-const SOON = [{ href: "/settings/", label: "Settings", icon: <Settings />, disabled: true }];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { state, logout } = useAuth();
+  const [openSection, setOpenSection] = useState<string | null>("Library");
+
+  // Routes outside the nav still need a title in the inset header.
+  const EXTRA_TITLES: Record<string, string> = {
+    "/onboarding/": "Set up",
+    "/login/": "Sign in",
+    "/": "Welcome",
+  };
+  const current =
+    GROUPS.flatMap((group) => group.items)
+      .flatMap((item) => [{ label: item.label, href: item.href }, ...(item.children ?? [])])
+      .find((entry) => entry.href === pathname)?.label ??
+    EXTRA_TITLES[pathname] ??
+    "leaflet";
 
   return (
-    <AnimatedSidebarProvider defaultOpen>
-      <AnimatedSidebar ariaLabel="Main">
-        <AnimatedSidebarHeader>
-          <a href="/" className="flex items-center gap-2 px-2 py-1">
-            <BookOpen className="size-5 text-primary" />
-            <span className="text-base font-semibold tracking-tight">leaflet</span>
-          </a>
+    <AnimatedSidebarProvider className="h-svh min-h-0 overflow-hidden">
+      <AnimatedSidebar
+        ariaLabel="leaflet"
+        collapsible="icon"
+        className="min-h-0"
+        panelClassName="h-full"
+      >
+        <AnimatedSidebarHeader className="p-3 pb-2">
+          <div className="flex min-h-11 items-center gap-3 overflow-hidden px-2">
+            <a
+              href="/"
+              className="grid size-7 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground"
+            >
+              <BookOpen aria-hidden="true" className="size-4" />
+            </a>
+            <a
+              href="/"
+              className="flex min-w-0 flex-1 items-center rounded-lg text-left outline-none group-data-[state=collapsed]/sidebar:hidden focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <span className="truncate text-sm font-semibold text-foreground">leaflet</span>
+            </a>
+            <AnimatedSidebarClose className="ml-auto text-muted-foreground hover:bg-muted md:hidden">
+              <X aria-hidden="true" className="size-4" />
+            </AnimatedSidebarClose>
+          </div>
         </AnimatedSidebarHeader>
 
-        <AnimatedSidebarContent>
-          <AnimatedSidebarGroup>
-            <AnimatedSidebarGroupLabel>Read</AnimatedSidebarGroupLabel>
-            <AnimatedSidebarMenu>
-              {NAV.map((item) => (
-                <AnimatedSidebarMenuItem key={item.href}>
-                  <AnimatedSidebarMenuButton
-                    href={item.href}
-                    icon={item.icon}
-                    isActive={pathname === item.href}
-                  >
-                    {item.label}
-                  </AnimatedSidebarMenuButton>
-                </AnimatedSidebarMenuItem>
-              ))}
-              {SOON.map((item) => (
-                <AnimatedSidebarMenuItem key={item.href}>
-                  <AnimatedSidebarMenuButton icon={item.icon} disabled badge="soon">
-                    {item.label}
-                  </AnimatedSidebarMenuButton>
-                </AnimatedSidebarMenuItem>
-              ))}
-            </AnimatedSidebarMenu>
-          </AnimatedSidebarGroup>
+        <AnimatedSidebarContent className="px-2 pt-1">
+          {GROUPS.map((group) => (
+            <AnimatedSidebarGroup key={group.label} className="pb-2">
+              <AnimatedSidebarGroupLabel>{group.label}</AnimatedSidebarGroupLabel>
+              <AnimatedSidebarGroupContent>
+                <AnimatedSidebarMenu>
+                  {group.items.map(({ label, icon: Icon, href, soon, children }) => {
+                    const childActive = children?.some((child) => child.href === pathname) ?? false;
+                    return (
+                      <AnimatedSidebarMenuItem key={label}>
+                        <AnimatedSidebarMenuButton
+                          href={href}
+                          disabled={soon || (!href && !children)}
+                          badge={soon ? "soon" : undefined}
+                          isActive={href === pathname || childActive}
+                          ariaExpanded={children ? openSection === label : undefined}
+                          icon={<Icon className="size-4" />}
+                          onSelect={() => {
+                            if (!children) return;
+                            setOpenSection((current) => (current === label ? null : label));
+                          }}
+                        >
+                          {label}
+                        </AnimatedSidebarMenuButton>
+                        {children ? (
+                          <AnimatedSidebarMenuSub open={openSection === label}>
+                            {children.map((child) => (
+                              <AnimatedSidebarMenuSubItem key={child.label}>
+                                <AnimatedSidebarMenuSubButton
+                                  href={child.href}
+                                  disabled={child.soon}
+                                  isActive={child.href === pathname}
+                                >
+                                  {child.label}
+                                </AnimatedSidebarMenuSubButton>
+                              </AnimatedSidebarMenuSubItem>
+                            ))}
+                          </AnimatedSidebarMenuSub>
+                        ) : null}
+                      </AnimatedSidebarMenuItem>
+                    );
+                  })}
+                </AnimatedSidebarMenu>
+              </AnimatedSidebarGroupContent>
+            </AnimatedSidebarGroup>
+          ))}
         </AnimatedSidebarContent>
 
-        <AnimatedSidebarFooter>
-          <div className="flex items-center justify-between gap-2 px-2">
-            <div className="flex min-w-0 items-center gap-2">
-              <CircleUser className="size-4 shrink-0 text-muted-foreground" />
-              <span className="truncate text-xs text-muted-foreground">
+        <AnimatedSidebarFooter className="gap-2 border-none p-3">
+          <div className="flex min-h-11 items-center gap-3 overflow-hidden rounded-xl p-1">
+            <span className="grid size-9 shrink-0 place-items-center rounded-full bg-muted text-xs font-semibold uppercase text-muted-foreground">
+              {initials(state.status === "authenticated" ? state.user.display_name : null)}
+            </span>
+            <span className="min-w-0 flex-1 group-data-[state=collapsed]/sidebar:hidden">
+              <span className="block truncate text-sm font-medium text-foreground">
                 {state.status === "authenticated" ? state.user.display_name : "Not signed in"}
               </span>
-            </div>
-            <ThemeToggle />
+              <span className="block truncate text-xs text-muted-foreground">
+                {state.status === "authenticated" ? state.user.email : "local server"}
+              </span>
+            </span>
           </div>
-          {state.status === "authenticated" && (
-            <button
-              type="button"
-              onClick={() => void logout()}
-              className="mx-2 mt-2 rounded-lg px-2 py-1 text-left text-xs text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
-            >
-              Sign out
-            </button>
-          )}
+          <div className="flex items-center gap-1 group-data-[state=collapsed]/sidebar:flex-col">
+            <ThemeToggle />
+            {state.status === "authenticated" ? (
+              <button
+                type="button"
+                onClick={() => void logout()}
+                className={cn(
+                  "flex min-h-9 flex-1 items-center gap-2 rounded-lg px-2 text-left text-xs",
+                  "text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+                  "group-data-[state=collapsed]/sidebar:justify-center",
+                )}
+              >
+                <LogOut aria-hidden="true" className="size-4" />
+                <span className="group-data-[state=collapsed]/sidebar:hidden">Sign out</span>
+              </button>
+            ) : (
+              <a
+                href="/login/"
+                className="flex min-h-9 flex-1 items-center gap-2 rounded-lg px-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground group-data-[state=collapsed]/sidebar:hidden"
+              >
+                <ChevronRight aria-hidden="true" className="size-4" />
+                Sign in
+              </a>
+            )}
+          </div>
         </AnimatedSidebarFooter>
+
+        <AnimatedSidebarRail />
       </AnimatedSidebar>
 
-      <AnimatedSidebarInset>
-        <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-3">
-          <AnimatedSidebarTrigger className="text-muted-foreground hover:text-foreground">
-            <PanelLeft className="size-4" />
+      <AnimatedSidebarInset className="min-h-0">
+        <header className="flex h-16 shrink-0 items-center gap-3 border-b border-border px-4">
+          <AnimatedSidebarTrigger className="text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+            <PanelLeft aria-hidden="true" className="size-4" />
           </AnimatedSidebarTrigger>
-          <span className="text-xs text-muted-foreground">
-            {state.status === "authenticated" ? state.user.display_name : "Reading, synced"}
-          </span>
-        </div>
-        {children}
+          <div className="h-5 w-px bg-border" />
+          <p className="text-sm font-medium text-foreground">{current}</p>
+        </header>
+        <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
       </AnimatedSidebarInset>
     </AnimatedSidebarProvider>
   );
+}
+
+function initials(name: string | null): string {
+  if (!name) return "?";
+  return name
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0] ?? "")
+    .join("");
 }
