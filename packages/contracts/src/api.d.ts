@@ -1,5 +1,11 @@
 // Generated from openapi.json by packages/contracts/scripts/generate.mjs.
 
+export type AuthSession = {
+    access_expires_at: string;
+    access_token: string;
+    user: User;
+  };
+
 export type Health = {
     database: string;
     status: string;
@@ -12,6 +18,23 @@ export type Problem = {
     type: string;
   };
 
+export type RegisterRequest = {
+    display_name: string;
+    email: string;
+    invite_code?: unknown;
+    password: string;
+  };
+
+export type Role = "admin" | "member";
+
+export type User = {
+    created_at: string;
+    display_name: string;
+    email: string;
+    id: string;
+    role: Role;
+  };
+
 export type Version = {
     api: string;
     name: string;
@@ -20,6 +43,7 @@ export type Version = {
   };
 
 export type Operations = {
+  "POST /api/v1/auth/register": unknown;
   "GET /api/v1/version": Version;
   "GET /healthz": Health;
 };

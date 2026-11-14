@@ -111,6 +111,8 @@ mod tests {
             database_url: format!("sqlite://{}?mode=rwc", dir.join("leaflet.db").display()),
             data_dir: dir.clone(),
             web_dir: dir.join("web"),
+            invite_code: None,
+            cookie_secure: false,
             log: "error".into(),
         };
         (db::open(&config).await.unwrap(), dir)

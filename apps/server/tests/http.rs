@@ -11,16 +11,20 @@ async fn state() -> AppState {
         database_url: format!("sqlite://{}?mode=rwc", dir.join("leaflet.db").display()),
         data_dir: dir.clone(),
         web_dir: dir.join("web"),
+        invite_code: None,
+        cookie_secure: false,
         log: "error".into(),
     };
     let pool = leaflet::db::open(&config).await.unwrap();
     let storage = leaflet::storage::Storage::new(config.blobs_dir()).unwrap();
     let assets = leaflet::assets::Assets::new(&config.web_dir);
+    let signing = leaflet::auth::tokens::SigningKey::from_bytes(&[3u8; 64]).unwrap();
     AppState {
         config,
         pool,
         storage,
         assets,
+        signing,
     }
 }
 

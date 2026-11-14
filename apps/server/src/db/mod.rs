@@ -89,6 +89,8 @@ mod tests {
             bind: "127.0.0.1:0".parse().unwrap(),
             database_url: format!("sqlite://{}?mode=rwc", dir.join("leaflet.db").display()),
             web_dir: dir.join("web"),
+            invite_code: None,
+            cookie_secure: false,
             data_dir: dir,
             log: "error".into(),
         }

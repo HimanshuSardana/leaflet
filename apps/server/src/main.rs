@@ -34,6 +34,20 @@ async fn main() -> ExitCode {
         }
     };
 
+    let signing = match leaflet::auth::tokens::SigningKey::load_or_create(
+        &config.data_dir,
+        std::env::var("LEAFLET_SECRET").ok().as_deref(),
+    ) {
+        Ok((signing, source)) => {
+            tracing::info!(?source, "access token signing key ready");
+            signing
+        }
+        Err(err) => {
+            tracing::error!(%err, "cannot prepare the signing key");
+            return ExitCode::FAILURE;
+        }
+    };
+
     let listener = match TcpListener::bind(config.bind).await {
         Ok(listener) => listener,
         Err(err) => {
@@ -54,6 +68,7 @@ async fn main() -> ExitCode {
         pool,
         storage,
         assets,
+        signing,
     });
     if let Err(err) = axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())

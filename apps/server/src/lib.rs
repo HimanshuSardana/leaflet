@@ -17,6 +17,7 @@ pub struct AppState {
     pub pool: SqlitePool,
     pub storage: storage::Storage,
     pub assets: assets::Assets,
+    pub signing: auth::tokens::SigningKey,
 }
 
 pub fn router(state: AppState) -> Router {
