@@ -11,6 +11,6 @@
     "test": "echo 'no tests: types only'"
   },
   "devDependencies": {
-    "typescript": "5.9.3"
+    "typescript": "7.0.2"
   }
 }
