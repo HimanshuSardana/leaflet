@@ -1,7 +1,6 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { BookPlus } from "lucide-react";
 
 import {
   Alert,
@@ -10,16 +9,23 @@ import {
   AlertIcon,
   AlertTitle,
 } from "@/components/motion/alert";
-import { StatefulButton } from "@/components/motion/button/stateful";
-import { Card } from "@/components/motion/card";
 import { Loader } from "@/components/motion/loader";
+import { BookList } from "@/components/book-list";
 import { LinkButton } from "@/components/link-button";
-import { getVersion } from "@/lib/api";
+import { UploadBooks } from "@/components/upload-books";
+import { getProblem, getVersion, listBooks } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { formatBytes } from "@/lib/format";
 
 export function LibraryView() {
   const { state } = useAuth();
   const version = useQuery({ queryKey: ["version"], queryFn: getVersion });
+  const accessToken = state.status === "authenticated" ? state.accessToken : null;
+  const books = useQuery({
+    queryKey: ["books"],
+    queryFn: () => listBooks(accessToken ?? ""),
+    enabled: accessToken !== null,
+  });
 
   if (state.status === "loading") {
     return (
@@ -54,28 +60,46 @@ export function LibraryView() {
     );
   }
 
+  const shelf = books.data ?? [];
+  const totalBytes = shelf.reduce((sum, book) => sum + book.byte_size, 0);
+  const problem = books.isError ? getProblem(books.error) : null;
+
   return (
-    <div className="mx-auto w-full max-w-4xl space-y-6 px-6 py-10">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="space-y-1">
-          <h1 className="text-3xl font-semibold">Library</h1>
-          <p className="text-sm text-muted-foreground">
-            {state.user.display_name} · nothing uploaded yet
+    <div className="mx-auto w-full max-w-4xl px-6 py-10">
+      <header className="flex flex-wrap items-end justify-between gap-3 pb-8">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Library</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {books.isLoading
+              ? "Loading…"
+              : shelf.length === 0
+                ? "No books yet"
+                : `${shelf.length} ${shelf.length === 1 ? "book" : "books"} · ${formatBytes(totalBytes)}`}
           </p>
         </div>
-        <StatefulButton icon={<BookPlus className="size-4" />} disabled>
-          Upload a book
-        </StatefulButton>
-      </div>
+      </header>
 
-      <Card className="grid place-items-center gap-3 border-dashed p-14 text-center">
-        <BookPlus className="size-8 text-muted-foreground" />
-        <p className="text-sm font-medium">Your shelves are empty</p>
-        <p className="max-w-sm text-sm text-muted-foreground">
-          PDFs and EPUBs land here once uploading ships — with covers, series and reading
-          progress that follows you between devices.
-        </p>
-      </Card>
+      <section aria-label="Add books" className="pb-10">
+        <UploadBooks />
+      </section>
+
+      <section aria-label="Shelf">
+        {problem ? (
+          <Alert variant="destructive">
+            <AlertIcon />
+            <AlertContent>
+              <AlertTitle>Could not load your shelf</AlertTitle>
+              <AlertDescription>{problem.message}</AlertDescription>
+            </AlertContent>
+          </Alert>
+        ) : books.isLoading ? (
+          <div className="border-t border-border py-10">
+            <Loader variant="bars" size={20} />
+          </div>
+        ) : (
+          <BookList books={shelf} />
+        )}
+      </section>
     </div>
   );
 }

@@ -39,7 +39,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <AnimatedToastStack toasts={items} onDismiss={dismiss} position="bottom-right" />
+      {/* fixed: a static stack renders wherever the provider sits, which put
+          toasts over the sidebar footer instead of the viewport corner. */}
+      <AnimatedToastStack toasts={items} onDismiss={dismiss} position="bottom-right" fixed />
     </ToastContext.Provider>
   );
 }
