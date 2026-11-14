@@ -1,6 +1,7 @@
 "use client";
 
 import type { Book } from "@leaflet/contracts";
+import Link from "next/link";
 
 import { formatAdded, formatBytes } from "@/lib/format";
 
@@ -22,6 +23,7 @@ export function BookList({ books }: { books: Book[] }) {
         <span className="min-w-0 flex-1">Title</span>
         <span className="w-16 shrink-0 text-right">Size</span>
         <span className="w-24 shrink-0 text-right">Added</span>
+        <span className="w-12 shrink-0" />
       </div>
       <ul className="divide-y divide-border border-t border-border">
         {books.map((book) => (
@@ -40,6 +42,16 @@ export function BookList({ books }: { books: Book[] }) {
             </span>
             <span className="w-24 shrink-0 text-right text-xs text-muted-foreground">
               {formatAdded(book.added_at)}
+            </span>
+            <span className="w-12 shrink-0 text-right">
+              {book.format === "epub" ? (
+                <Link
+                  href={`/read/?id=${book.id}`}
+                  className="text-xs text-muted-foreground underline-offset-4 transition-colors duration-150 ease-[var(--ease-out)] hover:text-foreground hover:underline"
+                >
+                  Read
+                </Link>
+              ) : null}
             </span>
           </li>
         ))}

@@ -375,7 +375,15 @@ fn same_origin(headers: &HeaderMap) -> bool {
     let Some(origin) = headers.get(ORIGIN).and_then(|value| value.to_str().ok()) else {
         return true;
     };
-    let Some(host) = headers.get(HOST).and_then(|value| value.to_str().ok()) else {
+    // A proxy that rewrites the destination (next dev's rewrite, caddy, nginx)
+    // reports the host the browser actually used here. A form POST cannot forge
+    // it, and a fetch that tries needs a preflight this API never grants.
+    let Some(host) = headers
+        .get("x-forwarded-host")
+        .or_else(|| headers.get(HOST))
+        .and_then(|value| value.to_str().ok())
+        .map(|value| value.split(',').next().unwrap_or(value).trim())
+    else {
         return false;
     };
     origin
@@ -409,6 +417,41 @@ pub fn routes() -> axum::Router<AppState> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn headers(pairs: &[(&'static str, &str)]) -> HeaderMap {
+        let mut map = HeaderMap::new();
+        for (name, value) in pairs {
+            map.insert(*name, value.parse().unwrap());
+        }
+        map
+    }
+
+    #[test]
+    fn same_origin_trusts_the_proxys_host_header() {
+        // the dev rewrite forwards the browser's host, not the api's
+        assert!(same_origin(&headers(&[
+            ("origin", "http://localhost:3000"),
+            ("host", "127.0.0.1:8080"),
+            ("x-forwarded-host", "localhost:3000"),
+        ])));
+        // a form post cannot set that header, so a real cross-site post is caught
+        assert!(!same_origin(&headers(&[
+            ("origin", "https://evil.example"),
+            ("host", "leaflet.example"),
+        ])));
+        // first entry wins when proxies chain
+        assert!(same_origin(&headers(&[
+            ("origin", "https://leaflet.example"),
+            ("host", "10.0.0.2:8080"),
+            ("x-forwarded-host", "leaflet.example, 10.0.0.1"),
+        ])));
+        // clients without an Origin (curl, the android app) are not browser posts
+        assert!(same_origin(&headers(&[("host", "leaflet.example")])));
+        assert!(!same_origin(&headers(&[(
+            "origin",
+            "https://evil.example"
+        )])));
+    }
 
     #[test]
     fn email_shape_is_loose_but_not_silly() {
