@@ -6,6 +6,7 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "Self-hostable ebook/manga/light-novel server"
+default-run = "leaflet-server"
 
 [lib]
 name = "leaflet"
