@@ -22,6 +22,13 @@ const scalars = new Map([
 function tsType(schema, indent = "  ") {
   if (!schema) return "unknown";
   if (schema.$ref) return schema.$ref.split("/").pop().replaceAll(".", "_");
+  // OpenAPI 3.1 writes nullable as a type union: "type": ["string", "null"].
+  if (Array.isArray(schema.type)) {
+    const variants = schema.type
+      .filter((t) => t !== "null")
+      .map((t) => scalars.get(t) ?? "unknown");
+    return schema.type.includes("null") ? `${variants.join(" | ")} | null` : variants.join(" | ");
+  }
   if (schema.enum) return schema.enum.map((v) => JSON.stringify(v)).join(" | ");
   if (schema.type === "array") return `${tsType(schema.items, indent)}[]`;
   if (schema.oneOf || schema.anyOf) {
