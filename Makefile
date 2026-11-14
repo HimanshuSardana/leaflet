@@ -2,7 +2,8 @@
 .DEFAULT_GOAL := help
 SHELL := /bin/bash
 
-RUST_SOURCES := $(shell git ls-files '*.rs')
+# cached + untracked (so a brand new file gets formatted too), minus ignored
+RUST_SOURCES := $(shell git ls-files --cached --others --exclude-standard '*.rs')
 
 help: ## list targets
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | awk -F':.*?## ' '{printf "  %-16s %s\n", $$1, $$2}'
