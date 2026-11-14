@@ -4,6 +4,17 @@ import { ApiProblem, getVersion, request } from "./api";
 
 afterEach(() => vi.unstubAllGlobals());
 
+/** The thrown value, narrowed to ApiProblem so assertions can read it. */
+async function rejection(promise: Promise<unknown>): Promise<ApiProblem> {
+  try {
+    await promise;
+  } catch (error) {
+    if (!(error instanceof ApiProblem)) throw error;
+    return error;
+  }
+  throw new Error("expected the promise to reject");
+}
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -29,7 +40,7 @@ test("a problem+json error becomes an ApiProblem carrying the detail", async () 
     ),
   );
 
-  const error = await request("/auth/login", { method: "POST", body: {} }).catch((e) => e);
+  const error = await rejection(request("/auth/login", { method: "POST", body: {} }));
   expect(error).toBeInstanceOf(ApiProblem);
   expect(error).toMatchObject({ status: 401, kind: "invalid_credentials" });
   expect(error.message).toBe("email or password is wrong");
@@ -39,7 +50,7 @@ test("a problem+json error becomes an ApiProblem carrying the detail", async () 
 test("a non-json error body still yields an ApiProblem", async () => {
   vi.stubGlobal("fetch", vi.fn(async () => new Response("boom", { status: 503 })));
 
-  const error = await getVersion().catch((e) => e);
+  const error = await rejection(getVersion());
   expect(error).toBeInstanceOf(ApiProblem);
   expect(error.status).toBe(503);
   expect(error.isAuthFailure).toBe(false);

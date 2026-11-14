@@ -28,7 +28,7 @@ check: fmt ## fmt + clippy
 test-rust: ## rust tests
 	cargo test --all
 
-test-web: ## web typecheck + tests
+test-web: ## web typecheck (incl. tests) + tests
 	pnpm --filter web typecheck
 	pnpm --filter web test
 
