@@ -7,6 +7,9 @@ const nextConfig: NextConfig = {
   output: "export",
   images: { unoptimized: true },
   trailingSlash: true,
+  // trailingSlash would rewrite /api/v1/x to /api/v1/x/ and the rust router
+  // matches exact paths, so every api call 404s in dev without this.
+  skipTrailingSlashRedirect: true,
   // Dev only. Exports ignore custom routes; in prod both sit on one origin.
   async rewrites() {
     if (process.env.NODE_ENV === "production") return [];
