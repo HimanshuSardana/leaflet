@@ -22,7 +22,7 @@ export type LoginRequest = {
   };
 
 export type Problem = {
-    detail?: unknown;
+    detail?: string | null;
     status: number;
     title: string;
     type: string;
@@ -31,7 +31,7 @@ export type Problem = {
 export type RegisterRequest = {
     display_name: string;
     email: string;
-    invite_code?: unknown;
+    invite_code?: string | null;
     password: string;
   };
 
