@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 
-import { Nav } from "@/components/nav";
+import { AppShell } from "@/components/app-shell";
 import { Providers } from "./providers";
 import "./globals.css";
 
@@ -30,8 +30,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
           <Providers>
-            <Nav />
-            <main className="mx-auto max-w-5xl px-6 py-10">{children}</main>
+            <AppShell>{children}</AppShell>
           </Providers>
         </ThemeProvider>
       </body>

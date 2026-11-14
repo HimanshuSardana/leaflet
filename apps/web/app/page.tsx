@@ -1,32 +1,26 @@
-"use client";
+import { LinkButton } from "@/components/link-button";
+import { TextReveal } from "@/components/motion/text-reveal";
 
-import { useQuery } from "@tanstack/react-query";
-import { getVersion } from "@/lib/api";
-
-export default function StatusPage() {
-  const { data, error, isPending } = useQuery({ queryKey: ["version"], queryFn: getVersion });
-
+export default function Home() {
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Server status</h1>
-      {isPending && <p className="text-sm text-muted-foreground">Contacting the API…</p>}
-      {error && (
-        <p className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
-          API unreachable: {error.message}
-        </p>
-      )}
-      {data && (
-        <dl className="grid grid-cols-2 gap-x-8 gap-y-3 text-sm sm:max-w-md">
-          <dt className="text-muted-foreground">server</dt>
-          <dd className="font-mono">{data.name}</dd>
-          <dt className="text-muted-foreground">version</dt>
-          <dd className="font-mono">{data.version}</dd>
-          <dt className="text-muted-foreground">api</dt>
-          <dd className="font-mono">{data.api}</dd>
-          <dt className="text-muted-foreground">schema</dt>
-          <dd className="font-mono">{data.schema}</dd>
-        </dl>
-      )}
+    <div className="mx-auto flex w-full max-w-2xl flex-col items-start gap-6 px-6 py-20">
+      <TextReveal
+        as="h1"
+        className="text-4xl font-semibold leading-tight"
+        text="Your books, on every device."
+        stagger={0.05}
+        blur={6}
+      />
+      <p className="max-w-prose text-sm text-muted-foreground">
+        leaflet keeps PDFs and EPUBs on your own server and remembers exactly where you stopped —
+        on the laptop, on the phone, wherever you open it next.
+      </p>
+      <div className="flex gap-3">
+        <LinkButton href="/library/">Open the library</LinkButton>
+        <LinkButton href="/onboarding/" variant="secondary">
+          Create an account
+        </LinkButton>
+      </div>
     </div>
   );
 }

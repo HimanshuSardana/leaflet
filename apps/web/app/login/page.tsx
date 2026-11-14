@@ -5,5 +5,9 @@ import { LoginForm } from "@/components/login-form";
 export const metadata: Metadata = { title: "Sign in · leaflet" };
 
 export default function LoginPage() {
-  return <LoginForm />;
+  return (
+    <div className="px-6">
+      <LoginForm />
+    </div>
+  );
 }

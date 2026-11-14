@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 
-import { OnboardingWizard } from "@/components/onboarding-wizard";
+import { Onboarding } from "@/components/onboarding";
 
 export const metadata: Metadata = { title: "Set up leaflet" };
 
 export default function OnboardingPage() {
-  return <OnboardingWizard />;
+  return <Onboarding />;
 }

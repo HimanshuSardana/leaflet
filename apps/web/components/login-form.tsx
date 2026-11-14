@@ -3,10 +3,17 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { Alert } from "@/components/motion/alert";
+import {
+  Alert,
+  AlertContent,
+  AlertDescription,
+  AlertIcon,
+  AlertTitle,
+} from "@/components/motion/alert";
 import { StatefulButton } from "@/components/motion/button/stateful";
 import { Card } from "@/components/motion/card";
 import { Input } from "@/components/motion/input";
+import { useToast } from "@/components/toast";
 import { ApiProblem } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { emailProblem, passwordProblem } from "@/lib/validation";
@@ -14,6 +21,7 @@ import { emailProblem, passwordProblem } from "@/lib/validation";
 export function LoginForm() {
   const router = useRouter();
   const { login } = useAuth();
+  const { toast } = useToast();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -30,6 +38,7 @@ export function LoginForm() {
     setError(null);
     try {
       await login(email.trim(), password);
+      toast("success", "Signed in");
       router.push("/library/");
     } catch (caught) {
       const problem = caught instanceof ApiProblem ? caught : null;
@@ -44,7 +53,7 @@ export function LoginForm() {
   };
 
   return (
-    <Card className="mx-auto mt-6 max-w-md p-7">
+    <Card className="mx-auto mt-10 w-full max-w-md p-7">
       <form
         className="space-y-5"
         onSubmit={(event) => {
@@ -53,7 +62,7 @@ export function LoginForm() {
         }}
       >
         <div className="space-y-2">
-          <h1 className="text-2xl font-semibold tracking-tight">Sign in</h1>
+          <h1 className="text-2xl font-semibold">Sign in</h1>
           <p className="text-sm text-muted-foreground">
             Your reading position follows you from device to device.
           </p>
@@ -79,8 +88,12 @@ export function LoginForm() {
         />
 
         {error && (
-          <Alert variant="destructive" title="Sign in failed">
-            {error}
+          <Alert variant="destructive">
+            <AlertIcon />
+            <AlertContent>
+              <AlertTitle>Sign in failed</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+          </AlertContent>
           </Alert>
         )}
 
