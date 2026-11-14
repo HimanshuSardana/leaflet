@@ -5,6 +5,7 @@
 
 use std::path::PathBuf;
 
+use crate::api::error::ApiError;
 use axum::http::{StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
 use tower_http::services::ServeDir;
@@ -33,14 +34,14 @@ impl Assets {
     pub async fn serve(&self, uri: Uri) -> Response {
         let path = uri.path();
         if path.starts_with("/api/") || path == "/healthz" {
-            return (StatusCode::NOT_FOUND, "not found").into_response();
+            return ApiError::not_found().into_response();
         }
         match self.resolved() {
             Some(service) => match tower::ServiceExt::oneshot(service, request_for(uri)).await {
                 Ok(response) if response.status() != StatusCode::NOT_FOUND => {
                     response.into_response()
                 }
-                _ => (StatusCode::NOT_FOUND, "not found").into_response(),
+                _ => ApiError::not_found().into_response(),
             },
             // No export: answer the root with a build hint, everything else 404.
             None if path == "/" => (
@@ -48,7 +49,7 @@ impl Assets {
                 "web assets are not built: run `pnpm --filter web build`",
             )
                 .into_response(),
-            None => (StatusCode::NOT_FOUND, "not found").into_response(),
+            None => ApiError::not_found().into_response(),
         }
     }
 }
