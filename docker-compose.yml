@@ -1,0 +1,14 @@
+services:
+  leaflet:
+    build: .
+    image: leaflet:dev
+    ports:
+      - "8080:8080"
+    volumes:
+      - leaflet-data:/data
+    environment:
+      LEAFLET_LOG: info,tower_http=warn
+    restart: unless-stopped
+
+volumes:
+  leaflet-data:

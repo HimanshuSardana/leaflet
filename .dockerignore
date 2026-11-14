@@ -1,0 +1,10 @@
+.git
+target
+node_modules
+**/.next
+**/out
+data
+*.db
+*.db-wal
+*.db-shm
+.agents
