@@ -11,6 +11,7 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 
@@ -34,7 +35,9 @@ import {
   AnimatedSidebarRail,
   AnimatedSidebarTrigger,
 } from "@/components/motion/animated-sidebar";
-import { ThemeToggle } from "@/components/motion/theme-toggle";
+import { LinkButton } from "@/components/link-button";
+import { ThemeSwitch } from "@/components/theme-switch";
+import { getVersion } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
@@ -73,7 +76,21 @@ const GROUPS: { label: string; items: Destination[] }[] = [
   },
 ];
 
+/**
+ * Two frames, chosen by auth state: a dashboard with a navigation rail for
+ * signed-in readers, and an ordinary page for everyone else. Rendering the
+ * sidebar for a visitor who has no library to navigate was the whole problem.
+ */
 export function AppShell({ children }: { children: React.ReactNode }) {
+  const { state } = useAuth();
+
+  if (state.status === "authenticated") {
+    return <Dashboard>{children}</Dashboard>;
+  }
+  return <PublicFrame>{children}</PublicFrame>;
+}
+
+function Dashboard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { state, logout } = useAuth();
   const [openSection, setOpenSection] = useState<string | null>("Library");
@@ -182,7 +199,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </span>
           </div>
           <div className="flex items-center gap-1 group-data-[state=collapsed]/sidebar:flex-col">
-            <ThemeToggle />
+            <ThemeSwitch />
             {state.status === "authenticated" ? (
               <button
                 type="button"
@@ -232,4 +249,77 @@ function initials(name: string | null): string {
     .slice(0, 2)
     .map((part) => part[0] ?? "")
     .join("");
+}
+
+/** What an anonymous visitor sees: a plain top bar, no rail, no dashboard. */
+function PublicFrame({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const version = useQuery({
+    queryKey: ["version"],
+    queryFn: getVersion,
+    staleTime: 5 * 60_000,
+  });
+  const firstRun = version.data?.registration === "open";
+
+  return (
+    <div className="flex min-h-svh flex-col">
+      <header className="sticky top-0 z-30 border-b border-border bg-background/80 backdrop-blur">
+        <div className="mx-auto flex h-16 w-full max-w-6xl items-center gap-6 px-6">
+          <a href="/" className="flex items-center gap-2">
+            <span className="grid size-7 place-items-center rounded-lg bg-primary text-primary-foreground">
+              <BookOpen aria-hidden="true" className="size-4" />
+            </span>
+            <span className="text-sm font-semibold tracking-tight">leaflet</span>
+          </a>
+
+          <nav className="hidden items-center gap-5 sm:flex">
+            {[
+              { href: "/status/", label: "Status" },
+              { href: "/library/", label: "Library" },
+            ].map((link) => (
+              <a
+                key={link.href}
+                href={link.href}
+                aria-current={pathname === link.href ? "page" : undefined}
+                className={cn(
+                  "text-sm text-muted-foreground transition-colors hover:text-foreground",
+                  pathname === link.href && "text-foreground",
+                )}
+              >
+                {link.label}
+              </a>
+            ))}
+          </nav>
+
+          <div className="ml-auto flex items-center gap-2">
+            <ThemeSwitch />
+            {pathname !== "/login/" && (
+              <LinkButton href="/login/" variant="ghost" className="h-9 px-4">
+                Sign in
+              </LinkButton>
+            )}
+            {pathname !== "/onboarding/" && (
+              <LinkButton href="/onboarding/" className="h-9 px-4">
+                {firstRun ? "Set up this server" : "Create account"}
+              </LinkButton>
+            )}
+          </div>
+        </div>
+      </header>
+
+      <main className="flex-1">{children}</main>
+
+      <footer className="border-t border-border">
+        <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-6 py-6 text-xs text-muted-foreground">
+          <span>leaflet — self-hosted reading, AGPL-3.0</span>
+          <a href="/status/" className="transition-colors hover:text-foreground">
+            Server status
+          </a>
+          <a href="/library/" className="transition-colors hover:text-foreground">
+            Library
+          </a>
+        </div>
+      </footer>
+    </div>
+  );
 }
