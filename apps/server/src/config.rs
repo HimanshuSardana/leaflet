@@ -10,6 +10,10 @@ pub struct Config {
     pub database_url: String,
     /// Where the exported web bundle lives. Absent in api-only deployments.
     pub web_dir: PathBuf,
+    /// Required for every registration after the first account.
+    pub invite_code: Option<String>,
+    /// `Secure` on the refresh cookie. Set false only for plain-http dev boxes.
+    pub cookie_secure: bool,
     pub log: String,
 }
 
@@ -47,6 +51,10 @@ impl Config {
         };
 
         let web_dir = std::env::var("LEAFLET_WEB_DIR").unwrap_or_else(|_| "./apps/web/out".into());
+        let invite_code = std::env::var("LEAFLET_INVITE_CODE")
+            .ok()
+            .filter(|code| !code.trim().is_empty());
+        let cookie_secure = std::env::var("LEAFLET_INSECURE_COOKIES").is_err();
         let log = std::env::var("LEAFLET_LOG").unwrap_or_else(|_| "info,tower_http=debug".into());
 
         Ok(Self {
@@ -54,6 +62,8 @@ impl Config {
             data_dir,
             database_url,
             web_dir: PathBuf::from(web_dir),
+            invite_code,
+            cookie_secure,
             log,
         })
     }
@@ -75,6 +85,8 @@ mod tests {
             data_dir: PathBuf::from("/var/lib/leaflet"),
             database_url: String::new(),
             web_dir: PathBuf::from("./apps/web/out"),
+            invite_code: None,
+            cookie_secure: true,
             log: String::new(),
         };
         assert_eq!(cfg.blobs_dir(), PathBuf::from("/var/lib/leaflet/blobs"));

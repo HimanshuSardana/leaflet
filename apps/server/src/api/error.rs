@@ -62,6 +62,16 @@ impl ApiError {
         Self::new(StatusCode::BAD_REQUEST, "bad_request", title)
     }
 
+    /// Input the client can fix: the title stays generic, `detail` says what.
+    pub fn validation(detail: impl Into<String>) -> Self {
+        Self::new(
+            StatusCode::BAD_REQUEST,
+            "invalid_request",
+            "Invalid request",
+        )
+        .with_detail(detail)
+    }
+
     pub fn conflict(title: impl Into<String>) -> Self {
         Self::new(StatusCode::CONFLICT, "conflict", title)
     }

@@ -22,6 +22,8 @@ path = "src/bin/gen_openapi.rs"
 
 [dependencies]
 axum = { workspace = true }
+axum-extra = { workspace = true }
+cookie = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }

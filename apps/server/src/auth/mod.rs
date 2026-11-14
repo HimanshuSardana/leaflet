@@ -1,6 +1,7 @@
 //! Credential handling. Passwords are only ever stored as argon2id hashes; the
 //! plaintext never leaves the request handler that hashed it.
 
+pub mod cookie;
 pub mod tokens;
 
 use argon2::password_hash::{PasswordHasher, PasswordVerifier, phc::PasswordHash};

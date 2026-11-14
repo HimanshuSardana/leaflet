@@ -1,3 +1,4 @@
+pub mod auth;
 pub mod error;
 pub mod version;
 
@@ -14,7 +15,7 @@ use crate::AppState;
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/healthz", get(healthz))
-        .nest("/api/v1", version::routes())
+        .nest("/api/v1", version::routes().merge(auth::routes()))
 }
 
 #[derive(Serialize, ToSchema)]
@@ -59,7 +60,15 @@ async fn healthz(State(state): State<AppState>) -> Response {
         description = "Self-hostable ebook, manga and light novel server",
         license(name = "AGPL-3.0-only")
     ),
-    paths(healthz, version::version),
-    components(schemas(Health, version::Version, error::Problem))
+    paths(healthz, version::version, auth::register),
+    components(schemas(
+        Health,
+        version::Version,
+        error::Problem,
+        auth::RegisterRequest,
+        auth::AuthSession,
+        crate::domain::user::User,
+        crate::domain::user::Role,
+    ))
 )]
 pub struct ApiDoc;
