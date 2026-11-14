@@ -175,3 +175,88 @@ async fn invalid_payloads_are_rejected_before_touching_the_db() {
 
     std::fs::remove_dir_all(dir).ok();
 }
+
+async fn login(state: &AppState, email: &str, password: &str) -> Reply {
+    post(
+        state,
+        "/api/v1/auth/login",
+        json!({ "email": email, "password": password }),
+    )
+    .await
+}
+
+#[tokio::test]
+async fn login_with_the_right_password_returns_a_token_and_cookie() {
+    let (state, dir) = state(None).await;
+    post(
+        &state,
+        "/api/v1/auth/register",
+        registration("reader@example.com", "hunter2hunter2", None),
+    )
+    .await;
+
+    let reply = login(&state, "READER@example.com", "hunter2hunter2").await;
+    assert_eq!(reply.status, StatusCode::OK);
+    assert_eq!(reply.body["user"]["email"], "reader@example.com");
+    assert!(reply.set_cookie.unwrap().contains("HttpOnly"));
+    std::fs::remove_dir_all(dir).ok();
+}
+
+#[tokio::test]
+async fn wrong_password_and_unknown_email_look_identical() {
+    let (state, dir) = state(None).await;
+    post(
+        &state,
+        "/api/v1/auth/register",
+        registration("reader@example.com", "hunter2hunter2", None),
+    )
+    .await;
+
+    let wrong = login(&state, "reader@example.com", "wrong-password").await;
+    let unknown = login(&state, "nobody@example.com", "wrong-password").await;
+
+    assert_eq!(wrong.status, StatusCode::UNAUTHORIZED);
+    assert_eq!(unknown.status, StatusCode::UNAUTHORIZED);
+    assert_eq!(wrong.body, unknown.body);
+    assert!(wrong.set_cookie.is_none());
+    std::fs::remove_dir_all(dir).ok();
+}
+
+#[tokio::test]
+async fn version_reports_the_registration_mode() {
+    let (open_state, open_dir) = state(None).await;
+    let open = get_json(&open_state, "/api/v1/version").await;
+    assert_eq!(open["registration"], "open");
+    std::fs::remove_dir_all(open_dir).ok();
+
+    let (closed_state, closed_dir) = state(None).await;
+    post(
+        &closed_state,
+        "/api/v1/auth/register",
+        registration("admin@example.com", "hunter2hunter2", None),
+    )
+    .await;
+    let closed = get_json(&closed_state, "/api/v1/version").await;
+    assert_eq!(closed["registration"], "closed");
+    std::fs::remove_dir_all(closed_dir).ok();
+
+    let (invite_state, invite_dir) = state(Some("let-me-in")).await;
+    post(
+        &invite_state,
+        "/api/v1/auth/register",
+        registration("admin@example.com", "hunter2hunter2", None),
+    )
+    .await;
+    let invite = get_json(&invite_state, "/api/v1/version").await;
+    assert_eq!(invite["registration"], "invite");
+    std::fs::remove_dir_all(invite_dir).ok();
+}
+
+async fn get_json(state: &AppState, path: &str) -> serde_json::Value {
+    let response = router(state.clone())
+        .oneshot(Request::get(path).body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    serde_json::from_slice(&bytes).unwrap()
+}

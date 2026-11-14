@@ -25,6 +25,8 @@ export type RegisterRequest = {
     password: string;
   };
 
+export type RegistrationMode = "open" | "invite" | "closed";
+
 export type Role = "admin" | "member";
 
 export type User = {
@@ -38,6 +40,7 @@ export type User = {
 export type Version = {
     api: string;
     name: string;
+    registration: RegistrationMode;
     schema: string;
     version: string;
   };
