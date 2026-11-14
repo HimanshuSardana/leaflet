@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { ThemeProvider } from "next-themes";
+import { ThemeSwitch } from "@/components/theme-switch";
 import { Providers } from "./providers";
 import "./globals.css";
 
@@ -25,15 +26,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
 function Nav() {
   return (
-    <header className="border-b border-neutral-200 dark:border-neutral-800">
+    <header className="border-b border-border">
       <nav className="mx-auto flex max-w-5xl items-center gap-6 px-6 py-4">
-        <span className="font-semibold tracking-tight text-leaf-700 dark:text-leaf-500">leaflet</span>
-        <a className="text-sm text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100" href="/">
+        <span className="font-semibold tracking-tight text-primary">leaflet</span>
+        <a className="text-sm text-muted-foreground transition-colors hover:text-foreground" href="/">
           Status
         </a>
-        <a className="text-sm text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100" href="/library/">
+        <a className="text-sm text-muted-foreground transition-colors hover:text-foreground" href="/library/">
           Library
         </a>
+        <div className="ml-auto">
+          <ThemeSwitch />
+        </div>
       </nav>
     </header>
   );

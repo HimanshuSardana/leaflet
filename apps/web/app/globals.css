@@ -1,17 +1,82 @@
 @import "tailwindcss";
 
-@theme {
-  --color-leaf-50: oklch(0.97 0.02 145);
-  --color-leaf-500: oklch(0.62 0.14 148);
-  --color-leaf-700: oklch(0.45 0.11 150);
+/* beUI components are shadcn-shaped: they use semantic tokens, so the palette
+   lives in CSS variables instead of being hard-coded per component. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --background: oklch(0.99 0.003 145);
+  --foreground: oklch(0.21 0.01 145);
+  --card: oklch(1 0 0);
+  --card-foreground: var(--foreground);
+  --popover: oklch(1 0 0);
+  --popover-foreground: var(--foreground);
+  --primary: oklch(0.52 0.11 150);
+  --primary-foreground: oklch(0.99 0.01 145);
+  --secondary: oklch(0.96 0.01 145);
+  --secondary-foreground: var(--foreground);
+  --muted: oklch(0.96 0.008 145);
+  --muted-foreground: oklch(0.52 0.01 145);
+  --accent: oklch(0.94 0.02 145);
+  --accent-foreground: var(--foreground);
+  --destructive: oklch(0.58 0.19 27);
+  --destructive-foreground: oklch(0.99 0.01 145);
+  --border: oklch(0.9 0.008 145);
+  --input: var(--border);
+  --ring: oklch(0.62 0.14 148);
+  --success: oklch(0.6 0.13 150);
 }
 
-@custom-variant dark (&:where(.dark, .dark *));
+.dark {
+  --background: oklch(0.17 0.008 150);
+  --foreground: oklch(0.95 0.006 145);
+  --card: oklch(0.21 0.009 150);
+  --card-foreground: var(--foreground);
+  --popover: oklch(0.21 0.009 150);
+  --popover-foreground: var(--foreground);
+  --primary: oklch(0.72 0.12 148);
+  --primary-foreground: oklch(0.17 0.008 150);
+  --secondary: oklch(0.26 0.01 150);
+  --secondary-foreground: var(--foreground);
+  --muted: oklch(0.24 0.009 150);
+  --muted-foreground: oklch(0.67 0.01 145);
+  --accent: oklch(0.28 0.012 150);
+  --accent-foreground: var(--foreground);
+  --destructive: oklch(0.62 0.18 27);
+  --destructive-foreground: oklch(0.98 0.01 145);
+  --border: oklch(0.3 0.01 150);
+  --input: var(--border);
+  --ring: oklch(0.6 0.12 148);
+  --success: oklch(0.7 0.13 150);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-success: var(--success);
+}
 
 html {
   color-scheme: light dark;
 }
 
 body {
-  @apply bg-neutral-50 text-neutral-900 antialiased dark:bg-neutral-950 dark:text-neutral-100;
+  @apply bg-background text-foreground antialiased;
 }
