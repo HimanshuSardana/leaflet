@@ -153,6 +153,225 @@
         }
       }
     },
+    "/api/v1/books": {
+      "get": {
+        "tags": [
+          "books"
+        ],
+        "summary": "Lists the caller's shelf, alphabetically by sort title.",
+        "operationId": "list",
+        "responses": {
+          "200": {
+            "description": "the caller's books",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Book"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "missing or expired access token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "books"
+        ],
+        "summary": "Uploads one PDF or EPUB as `multipart/form-data` with a field named `file`.",
+        "description": "The format is sniffed from the bytes, so a mislabelled file is rejected\ninstead of being stored as something it is not. Uploading the same bytes\ntwice is a no-op that answers 200 with the existing book; new books answer\n201.",
+        "operationId": "upload",
+        "requestBody": {
+          "description": "one part, name `file`, containing the PDF or EPUB",
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "this copy was already in the library",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Book"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "book stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Book"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "malformed or empty upload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "missing or expired access token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "upload is larger than the configured limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "the bytes are not a PDF or EPUB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/books/{id}": {
+      "get": {
+        "tags": [
+          "books"
+        ],
+        "operationId": "get_one",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "book id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "the book",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Book"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "no such book, or not this user's",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/books/{id}/file": {
+      "get": {
+        "tags": [
+          "books"
+        ],
+        "summary": "Serves the stored file. Byte ranges are honoured because PDF readers seek\ninto the file instead of downloading it whole.",
+        "operationId": "download",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "book id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "the whole file"
+          },
+          "206": {
+            "description": "the requested byte range"
+          },
+          "404": {
+            "description": "no such book, or not this user's",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "416": {
+            "description": "range not satisfiable"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
     "/api/v1/me": {
       "get": {
         "tags": [
@@ -279,6 +498,83 @@
             "$ref": "#/components/schemas/User"
           }
         }
+      },
+      "Book": {
+        "type": "object",
+        "description": "A book as the API exposes it: metadata plus the blob's address, never the\nblob itself.",
+        "required": [
+          "id",
+          "title",
+          "format",
+          "byte_size",
+          "sha256",
+          "added_at"
+        ],
+        "properties": {
+          "added_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "author": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "byte_size": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "format": {
+            "$ref": "#/components/schemas/BookFormat"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "language": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "page_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "series": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sha256": {
+            "type": "string",
+            "description": "sha256 of the stored bytes; stable across re-uploads."
+          },
+          "title": {
+            "type": "string"
+          },
+          "volume": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          }
+        }
+      },
+      "BookFormat": {
+        "type": "string",
+        "description": "Container formats leaflet reads as-is. Sniffed from the bytes, never from\nthe filename: a `.pdf` that is really an epub must not fool the server.",
+        "enum": [
+          "pdf",
+          "epub",
+          "cbz"
+        ]
       },
       "Health": {
         "type": "object",

@@ -14,6 +14,7 @@ async fn state() -> AppState {
         invite_code: None,
         cookie_secure: false,
         log: "error".into(),
+        max_upload_bytes: 512 * 1024 * 1024,
     };
     let pool = leaflet::db::open(&config).await.unwrap();
     let storage = leaflet::storage::Storage::new(config.blobs_dir()).unwrap();

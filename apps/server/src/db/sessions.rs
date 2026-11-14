@@ -239,6 +239,7 @@ mod tests {
             invite_code: None,
             cookie_secure: false,
             log: "error".into(),
+            max_upload_bytes: 512 * 1024 * 1024,
         };
         let pool = db::open(&config).await.unwrap();
         let user = users::insert(

@@ -19,6 +19,7 @@ async fn state(invite_code: Option<&str>) -> (AppState, std::path::PathBuf) {
         invite_code: invite_code.map(str::to_owned),
         cookie_secure: false,
         log: "error".into(),
+        max_upload_bytes: 512 * 1024 * 1024,
     };
     let pool = leaflet::db::open(&config).await.unwrap();
     let storage = leaflet::storage::Storage::new(config.blobs_dir()).unwrap();
